@@ -2,6 +2,7 @@
 
 ## 0.1.0
 
+- Stand jetzt wird noch an dem automatischen verbindungsprozess gearbeitet
 - Erster Marketplace-fähiger Stand: nur noch **⬇️ SPIKE-Knopf**.
 - Aktive `.py`-Datei wird per `pybricksdev run ble` verbunden, übertragen und gestartet.
 - Automatisches Finden von System-Python (>= 3.10, Windows/Mac/Linux) statt hartcodiertem `.venv`-Pfad.
