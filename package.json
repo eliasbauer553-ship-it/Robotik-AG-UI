@@ -4,7 +4,7 @@
   "publisher": "JulianSeckinger",
   "description": "LEGO SPIKE per Knopfdruck flashen & starten (Pybricks via Bluetooth) für die Robotik-AG des LGÖ.",
   "icon": "images/icon.png",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
