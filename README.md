@@ -10,7 +10,7 @@ LEGO® SPIKE per Knopfdruck flashen & starten – für die Robotik-AG.
    - Mac/Linux: `python3 --version` prüfen (>= 3.10).
    - VS Code nach der Python-Installation neu starten.
 3. `.py`-Datei öffnen (z. B. `main.py` für den SPIKE).
-4. Oben im Editor auf **⬇️ SPIKE** klicken (oder Command Palette: `⬇️ SPIKE: Aktives Programm flashen & starten`).
+4. Oben im Editor auf **Spike** klicken (oder Command Palette: `Spike`).
 5. Beim ersten Klick installiert die Extension automatisch `pybricksdev` per `pip` nach (Internet nötig).
 6. SPIKE-Hub **einschalten**, Bluetooth am Rechner **an**, Hub **nah dran** → die Extension verbindet sich per BLE, überträgt das aktive Programm und startet es.
 
@@ -27,7 +27,7 @@ Fortschritt siehst du im Output-Panel **„Pybricks SPIKE“** und in der Status
 
 | Befehl | Was passiert |
 |---|---|
-| `⬇️ SPIKE: Aktives Programm flashen & starten` (`robotik-extension.downloadMainSpike`) | Nimmt die gerade geöffnete `.py`-Datei und führt `python -m pybricksdev run ble <datei>` aus: verbinden → übertragen → starten. |
+| `Spike` (`robotik-extension.downloadMainSpike`) | Nimmt die gerade geöffnete `.py`-Datei und führt `python -m pybricksdev run ble <datei>` aus: verbinden → übertragen → starten. |
 
 ## Fehlerbehebung
 
