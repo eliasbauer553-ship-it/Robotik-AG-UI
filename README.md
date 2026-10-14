@@ -1,8 +1,8 @@
 # Robotik in VS Code
 
-LEGO® SPIKE per Knopfdruck flashen & starten – für die Robotik-AG.
+LEGO® SPIKE per Knopfdruck flashen & starten – für die Robotik-AG des LGÖ.
 
-## So geht's (für Freunde: einfach installieren & los)
+## First Steps
 
 1. Extension aus dem Marketplace installieren: **Robotik in VS Code** (`JulianSeckinger.robotik-extension`).
 2. Voraussetzung (einmalig): **Python 3.10+** installieren
@@ -16,7 +16,7 @@ LEGO® SPIKE per Knopfdruck flashen & starten – für die Robotik-AG.
 
 Fortschritt siehst du im Output-Panel **„Pybricks SPIKE“** und in der Statusleiste.
 
-## Was du brauchst
+## Anforderungen
 
 - VS Code 1.103+
 - Python 3.10+
@@ -40,18 +40,3 @@ Fortschritt siehst du im Output-Panel **„Pybricks SPIKE“** und in der Status
 
 - Pausiert in v0.1 (kommen später zurück): Simulationsfenster, ESP32/Pymakr-Flow, Auto-Sync, Batterie-Anzeige.
 - Lizenz: GPL-3.0-only, siehe `LICENSE`.
-
-## Entwicklung
-
-```bash
-npm install
-npm run lint
-npm run package   # erzeugt .vsix
-```
-
-Veröffentlichen (Maintainer):
-
-```bash
-vsce login JulianSeckinger
-vsce publish minor
-```
