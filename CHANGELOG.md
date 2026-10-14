@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Strukturelle Verbesserungen der Extensionbeschreibung.
+
 ## 0.1.0
 
 - Stand jetzt wird noch an dem automatischen verbindungsprozess gearbeitet
