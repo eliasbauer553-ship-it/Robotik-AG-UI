@@ -141,7 +141,7 @@ function getOrCreateTerminal() {
 async function flashActiveSpikeFile() {
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
-        vscode.window.showErrorMessage('Keine Datei geöffnet! Bitte eine .py-Datei öffnen und dann Spike drücken.');
+        vscode.window.showErrorMessage('Keine Datei geöffnet! Bitte eine .py-Datei öffnen und dann ⬇️ Spike drücken.');
         return;
     }
 
@@ -171,7 +171,7 @@ async function flashActiveSpikeFile() {
             statusItem.text = '$(error) Pybricks: Kein Python gefunden!';
             outputChannel.appendLine('❌ Kein Python >= 3.10 gefunden.');
             outputChannel.appendLine('👉 Bitte Python 3.10+ von python.org installieren (Windows: „Add python to PATH“ anhaken), VS Code neu starten und erneut drücken.');
-            vscode.window.showErrorMessage('Kein Python 3.10+ gefunden. Bitte Python installieren, dann erneut Spike drücken.');
+            vscode.window.showErrorMessage('Kein Python 3.10+ gefunden. Bitte Python installieren, dann erneut ⬇️ Spike drücken.');
             setTimeout(() => statusItem.hide(), 5000);
             return;
         }

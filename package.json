@@ -36,7 +36,7 @@
     "commands": [
       {
         "command": "robotik-extension.downloadMainSpike",
-        "title": "Spike"
+        "title": "⬇️ Spike"
       }
     ],
     "menus": {
