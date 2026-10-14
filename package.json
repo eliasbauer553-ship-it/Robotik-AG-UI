@@ -3,6 +3,7 @@
   "displayName": "Robotik in VS Code",
   "publisher": "JulianSeckinger",
   "description": "LEGO SPIKE per Knopfdruck flashen & starten (Pybricks via Bluetooth) – für die Robotik-AG.",
+  "icon": "images/icon.png",
   "version": "0.1.0",
   "license": "GPL-3.0-only",
   "repository": {
