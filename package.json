@@ -1,0 +1,70 @@
+{
+  "name": "robotik-extension",
+  "displayName": "Robotik in VS Code",
+  "publisher": "JulianSeckinger",
+  "description": "LEGO SPIKE per Knopfdruck flashen & starten (Pybricks via Bluetooth) – für die Robotik-AG.",
+  "version": "0.1.0",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anomalyco/Robotik-AG-UI.git"
+  },
+  "homepage": "https://github.com/anomalyco/Robotik-AG-UI#readme",
+  "bugs": {
+    "url": "https://github.com/anomalyco/Robotik-AG-UI/issues"
+  },
+  "keywords": [
+    "education",
+    "robotics",
+    "spike",
+    "pybricks",
+    "lego"
+  ],
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Education",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:robotik-extension.downloadMainSpike"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "robotik-extension.downloadMainSpike",
+        "title": "⬇️ SPIKE: Aktives Programm flashen & starten"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "robotik-extension.downloadMainSpike"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "robotik-extension.downloadMainSpike",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "vscode-test",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.103.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.2.2",
+    "eslint": "^9.32.0"
+  }
+}
