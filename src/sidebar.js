@@ -86,6 +86,8 @@ class SidebarProvider {
     <button id="btnScan" class="secondary" data-act="scan">🔍 Suchen</button>
     <button class="secondary" data-act="addHub">＋ Name eingeben</button>
   </div>
+  <button class="secondary wide" data-act="multiRun" title="Dieselbe Datei auf mehrere Hubs gleichzeitig">👥 Klassenmodus: auf mehrere Hubs</button>
+  <div id="multi" class="multi hidden"></div>
   <div id="hubs" class="hubs"></div>
 </details>
 
@@ -95,12 +97,29 @@ class SidebarProvider {
   <div id="log" class="log" role="log"></div>
 </details>
 
+<details class="block" id="valuesBlock">
+  <summary>Messwerte</summary>
+  <div class="hintline">Zahlen aus <code>print("Abstand:", x)</code> werden als Kurve gezeichnet.</div>
+  <canvas id="chart" width="280" height="140" aria-label="Messwerte als Liniendiagramm"></canvas>
+  <div id="legend" class="legend"></div>
+  <div class="btn-row"><button class="mini" data-act="clearValues">Leeren</button></div>
+</details>
+
+<details class="block">
+  <summary>Aufgaben</summary>
+  <div id="tasks" class="tasks"></div>
+  <div class="hintline">Eigene Karten: Datei <code>robotik-tasks.json</code> im Projektordner.</div>
+</details>
+
 <details class="block">
   <summary>Werkzeuge</summary>
   <div class="tools">
     <button class="secondary" data-act="newFromTemplate">📄 Neues Programm aus Vorlage</button>
+    <button class="secondary" data-act="newProject">📁 Neues Projekt anlegen</button>
+    <button class="secondary" data-act="autocomplete">✨ Autovervollständigung einrichten</button>
     <button class="secondary" data-act="clearProgram">🗑 Programm vom Hub löschen</button>
     <button class="secondary" data-act="checkEnv">🩺 Umgebung prüfen / reparieren</button>
+    <button class="secondary" data-act="copyDiagnostics">📋 Diagnosebericht kopieren</button>
     <button class="secondary" data-act="updateEnv">⬆ pybricksdev aktualisieren</button>
     <button class="secondary" data-act="link" data-value="https://code.pybricks.com">🌐 Firmware installieren (code.pybricks.com)</button>
     <button class="secondary" data-act="link" data-value="https://docs.pybricks.com">📚 Pybricks-Dokumentation</button>

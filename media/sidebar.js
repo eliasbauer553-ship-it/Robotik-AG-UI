@@ -4,6 +4,11 @@
     const $ = (s) => document.querySelector(s);
     const logEl = $('#log');
     let state = null;
+    let renderedTasks = '';
+    const series = {};
+    const MAX_POINTS = 150;
+    const COLORS = ['#4fc1ff', '#f2994a', '#6fcf97', '#bb6bd9', '#f2c94c', '#eb5757'];
+    let chartQueued = false;
 
     const STEP_LABELS = ['Umgebung bereit', 'Hub suchen', 'Verbunden', 'Programm übertragen', 'Programm läuft', 'Fertig'];
 
@@ -17,7 +22,7 @@
 
     function render() {
         if (!state) { return; }
-        const busy = state.run.status === 'busy';
+        const busy = !!state.busy;
 
         // Umgebung
         const pill = $('#envPill');
@@ -113,6 +118,33 @@
             }).join('');
         }
 
+        // Klassenmodus
+        const multi = $('#multi');
+        const mi = state.multi.items;
+        if (!mi.length) {
+            multi.classList.add('hidden');
+            multi.innerHTML = '';
+        } else {
+            multi.classList.remove('hidden');
+            const label = (i) => i.status === 'done' ? 'fertig' : i.status === 'error' ? 'Fehler' : i.status === 'stopped' ? 'gestoppt' : i.status === 'wait' ? 'wartet' :
+                (['Umgebung', 'sucht Hub', 'verbunden', 'überträgt', 'läuft', 'fertig'][i.step] || '');
+            const sym = (i) => i.status === 'done' ? '<span class="ok-text">✓</span>' : i.status === 'error' ? '<span class="bad-text">✗</span>' : i.status === 'stopped' ? '■' : i.status === 'busy' ? '⏳' : '·';
+            const done = mi.filter((i) => i.status === 'done').length;
+            multi.innerHTML = '<div class="mhead">Klassenmodus · ' + done + '/' + mi.length + ' fertig</div>' +
+                mi.map((i) => '<div class="mrow">' + sym(i) + '<span class="name" title="' + esc(i.name) + '">' + esc(i.name) + '</span><small>' + esc(label(i)) + '</small></div>').join('');
+        }
+
+        // Aufgabenkarten (offene Karten bleiben offen)
+        const tasksJson = JSON.stringify(state.tasks);
+        if (tasksJson !== renderedTasks) {
+            renderedTasks = tasksJson;
+            const open = new Set(Array.from(document.querySelectorAll('#tasks details[open]')).map((d) => d.dataset.id));
+            $('#tasks').innerHTML = state.tasks.map((t) => '<details class="task" data-id="' + esc(t.id) + '"' + (open.has(t.id) ? ' open' : '') + '><summary>' + esc(t.title) + ' <span class="tag">' + esc(t.level) + '</span></summary>' +
+                '<p>' + esc(t.goal) + '</p>' +
+                (t.hints.length ? '<ul>' + t.hints.map((h) => '<li>' + esc(h) + '</li>').join('') + '</ul>' : '') +
+                (t.hasStarter ? '<button class="secondary" data-act="taskStarter" data-name="' + esc(t.id) + '">Startdatei anlegen</button>' : '') + '</details>').join('') || '<div class="empty">Keine Aufgaben.</div>';
+        }
+
         // Einstellungen
         document.querySelectorAll('[data-setting]').forEach((el) => {
             el.checked = !!state.settings[el.dataset.setting];
@@ -129,16 +161,78 @@
         if (nearBottom) { logEl.scrollTop = logEl.scrollHeight; }
     }
 
+    function addValues(values) {
+        for (const k of Object.keys(values)) {
+            if (!series[k] && Object.keys(series).length >= COLORS.length) { continue; }
+            const arr = series[k] || (series[k] = []);
+            arr.push(values[k]);
+            if (arr.length > MAX_POINTS) { arr.shift(); }
+        }
+        if (!chartQueued) { chartQueued = true; requestAnimationFrame(() => { chartQueued = false; drawChart(); }); }
+    }
+
+    function resetValues() {
+        Object.keys(series).forEach((k) => delete series[k]);
+        drawChart();
+    }
+
+    function drawChart() {
+        const canvas = $('#chart');
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.clientWidth || 280;
+        const h = 140;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h);
+        const fg = getComputedStyle(document.body).color || '#ccc';
+        const names = Object.keys(series);
+        $('#legend').innerHTML = names.map((n, i) => '<span><i class="c' + i + '"></i>' + esc(n) + ': <b>' + esc(Math.round(series[n][series[n].length - 1] * 100) / 100) + '</b></span>').join('');
+        if (!names.length) {
+            ctx.fillStyle = fg; ctx.globalAlpha = 0.5; ctx.font = '12px sans-serif';
+            ctx.fillText('Noch keine Messwerte.', 10, 22);
+            return;
+        }
+        let min = Infinity, max = -Infinity;
+        names.forEach((n) => series[n].forEach((v) => { if (v < min) { min = v; } if (v > max) { max = v; } }));
+        if (min === max) { min -= 1; max += 1; }
+        const padL = 34, padR = 6, padT = 8, padB = 8;
+        ctx.strokeStyle = fg; ctx.fillStyle = fg; ctx.font = '10px sans-serif';
+        ctx.globalAlpha = 0.2;
+        for (let g = 0; g <= 2; g++) {
+            const y = padT + ((h - padT - padB) * g) / 2;
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+        }
+        ctx.globalAlpha = 0.7;
+        ctx.fillText(String(Math.round(max * 10) / 10), 2, padT + 4);
+        ctx.fillText(String(Math.round(min * 10) / 10), 2, h - padB);
+        ctx.globalAlpha = 1;
+        names.forEach((n, i) => {
+            const arr = series[n];
+            ctx.strokeStyle = COLORS[i]; ctx.lineWidth = 1.6; ctx.beginPath();
+            arr.forEach((v, idx) => {
+                const x = padL + ((w - padL - padR) * idx) / Math.max(1, MAX_POINTS - 1);
+                const y = padT + (h - padT - padB) * (1 - (v - min) / (max - min));
+                if (idx === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+            });
+            ctx.stroke();
+        });
+    }
+
     window.addEventListener('message', (e) => {
         const m = e.data;
         if (m.type === 'state') { state = m.state; render(); }
         else if (m.type === 'log') { addLog(m.entry); }
+        else if (m.type === 'values') { addValues(m.values); }
+        else if (m.type === 'valuesReset') { resetValues(); }
         else if (m.type === 'logReset') { logEl.textContent = ''; (m.entries || []).forEach(addLog); }
     });
 
     document.addEventListener('click', (e) => {
         const el = e.target.closest('[data-act]');
         if (!el || el.disabled) { return; }
+        if (el.dataset.act === 'clearValues') { resetValues(); return; }
         const d = el.dataset;
         vscode.postMessage({ type: d.act, name: d.name, address: d.address, value: d.value, index: d.index === undefined ? undefined : Number(d.index) });
     });
@@ -147,5 +241,6 @@
         if (el) { vscode.postMessage({ type: 'setting', key: el.dataset.setting, value: el.checked }); }
     });
 
+    drawChart();
     vscode.postMessage({ type: 'ready' });
 })();

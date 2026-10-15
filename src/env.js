@@ -157,3 +157,30 @@ function firstLine(err) {
 }
 
 module.exports = { Environment, findSystemPython, exec };
+
+/** Python-Syntaxprüfung ohne Ausführung. @returns {Promise<{line:number,message:string}|null>} */
+async function syntaxCheck(python, file) {
+    const script = 'import sys, json\n' +
+        'try:\n' +
+        '    compile(open(sys.argv[1], encoding="utf-8").read(), sys.argv[1], "exec")\n' +
+        'except SyntaxError as e:\n' +
+        '    print(json.dumps({"line": e.lineno or 1, "message": "%s: %s" % (type(e).__name__, e.msg)}))\n';
+    try {
+        const { stdout } = await exec(python[0], [...python.slice(1), '-c', script, file]);
+        const t = stdout.trim();
+        return t ? JSON.parse(t.split(/\r?\n/).pop()) : null;
+    } catch {
+        return null; // Prüfung selbst fehlgeschlagen -> nicht blockieren
+    }
+}
+
+/** Installiert die Pybricks-Typ-Stubs (für Autovervollständigung) und liefert den site-packages-Pfad. */
+async function installStubs(python, log) {
+    log('📦 Installiere Pybricks-Stubs für die Autovervollständigung…');
+    await exec(python[0], [...python.slice(1), '-m', 'pip', 'install', '-U', 'pybricks']);
+    const { stdout } = await exec(python[0], [...python.slice(1), '-c', 'import os, pybricks; print(os.path.dirname(os.path.dirname(pybricks.__file__)))']);
+    return stdout.trim();
+}
+
+module.exports.syntaxCheck = syntaxCheck;
+module.exports.installStubs = installStubs;

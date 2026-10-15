@@ -3,12 +3,16 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { Environment } = require('./env');
+const { Environment, syntaxCheck, installStubs } = require('./env');
 const ble = require('./ble');
 const { STEP, LineBuffer, classifyLine, rssiBars } = require('./parse');
 const { analyze } = require('./hints');
 const { TEMPLATES } = require('./templates');
 const { SidebarProvider } = require('./sidebar');
+const { parseValues } = require('./live');
+const { findErrorLocation } = require('./diagnostics');
+const { staticChecks } = require('./preflight');
+const { loadTasks } = require('./tasks');
 
 const CMD = {
     run: 'robotik-extension.downloadMainSpike',
@@ -18,7 +22,11 @@ const CMD = {
     clear: 'robotik-extension.clearHubProgram',
     template: 'robotik-extension.newFromTemplate',
     env: 'robotik-extension.checkEnvironment',
-    open: 'robotik-extension.openPanel'
+    open: 'robotik-extension.openPanel',
+    multi: 'robotik-extension.multiUpload',
+    autocomplete: 'robotik-extension.setupAutocomplete',
+    project: 'robotik-extension.newProject',
+    diagnostics: 'robotik-extension.copyDiagnostics'
 };
 
 class Controller {
@@ -43,6 +51,11 @@ class Controller {
         this.activeFile = null;
         this.idleTimer = null;
         this.lastPctBucket = -1;
+        this.recent = [];
+        this.stderrTail = [];
+        this.tasks = [];
+        this.multi = { active: false, mode: 'run', items: [], cancelled: false };
+        this.diag = vscode.languages.createDiagnosticCollection('robotik');
 
         const ed = vscode.window.activeTextEditor;
         if (ed) { this._trackEditor(ed); }
@@ -50,8 +63,10 @@ class Controller {
 
     dispose() {
         this._killRunner();
+        this._killMulti();
         this.out.dispose();
         this.status.dispose();
+        this.diag.dispose();
     }
 
     // ───────────────────────── Registrierung ─────────────────────────
@@ -71,6 +86,10 @@ class Controller {
         reg(CMD.clear, () => this.clearHubProgram());
         reg(CMD.template, () => this.newFromTemplate());
         reg(CMD.env, () => this.checkEnv());
+        reg(CMD.multi, () => this.multiRun());
+        reg(CMD.autocomplete, () => this.setupAutocomplete(false));
+        reg(CMD.project, () => this.newProject());
+        reg(CMD.diagnostics, () => this.copyDiagnostics());
         reg(CMD.open, () => vscode.commands.executeCommand('workbench.view.extension.robotik'));
         this._updateStatusBar();
         this.status.show();
@@ -81,6 +100,7 @@ class Controller {
     get cfg() { return vscode.workspace.getConfiguration('robotik'); }
     get savedHubs() { return this.ctx.globalState.get('hubs', []); }
     get selectedHub() { return this.ctx.globalState.get('selectedHub', null); }
+    get busy() { return !!this.runner || this.multi.active; }
     get history() { return this.ctx.globalState.get('history', []); }
 
     _trackEditor(ed) {
@@ -115,6 +135,9 @@ class Controller {
             scanning: this.scanning,
             scanned: this.scanned,
             run: { status: this.run.status, mode: this.run.mode, step: this.run.step },
+            busy: this.busy,
+            multi: { active: this.multi.active, mode: this.multi.mode, items: this.multi.items.map((i) => ({ name: i.name, status: i.status, step: i.step })) },
+            tasks: this.tasks.map((t) => ({ id: t.id, title: t.title, level: t.level, goal: t.goal, hints: t.hints, hasStarter: !!t.starter, custom: t.custom })),
             activeFile: this.activeFile ? { name: path.basename(this.activeFile), path: this.activeFile } : null,
             history: this.history.map((h, i) => ({ ...h, index: i })),
             hint: this.hint,
@@ -132,14 +155,18 @@ class Controller {
     }
 
     onReady() {
+        const root = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+        this.tasks = loadTasks(root ? root.uri.fsPath : null);
         this.sidebar.post({ type: 'logReset', entries: this.logBuf });
         this.pushState();
     }
 
     _updateStatusBar() {
         const hub = this.selectedHub || 'Auto';
-        const s = this.run.status;
-        if (s === 'busy') {
+        const s = this.multi.active ? 'busy' : this.run.status;
+        if (this.multi.active) {
+            this.status.text = `$(sync~spin) SPIKE: Klassenmodus (${this.multi.items.filter((i) => i.status === 'done').length}/${this.multi.items.length})`;
+        } else if (s === 'busy') {
             this.status.text = `$(sync~spin) SPIKE: ${['Umgebung', 'Suche', 'Verbunden', 'Übertrage', 'Läuft', ''][this.run.step] || ''}…`;
         } else if (s === 'done') {
             this.status.text = '$(check) SPIKE: Fertig';
@@ -228,6 +255,7 @@ class Controller {
         this.envState = { status: 'ok', version: info.version };
         this.log('ok', `pybricksdev ${info.version} bereit.`);
         this.pushState();
+        this.setupAutocomplete(true);
         return info;
     }
 
@@ -375,7 +403,7 @@ class Controller {
     }
 
     async runFile(mode, fileOverride) {
-        if (this.runner) {
+        if (this.busy) {
             this.log('warn', 'Es läuft bereits ein Vorgang. Erst „Stop“ drücken.');
             return;
         }
@@ -397,12 +425,20 @@ class Controller {
         if (this.cfg.get('clearLogOnRun')) { this.clearLog(); }
         this.lastPctBucket = -1;
         this.stderrTail = [];
+        this.recent = [];
+        this.diag.clear();
+        this.sidebar.post({ type: 'valuesReset' });
         this.setRun({ status: 'busy', mode, file, step: STEP.ENV, startedAt: Date.now() });
         this.log('info', `Datei: ${file}`);
 
         const info = await this.ensureEnv();
         if (!info) { this.setRun({ status: 'error' }); return; }
         const caps = await this.env.capabilities(info.python, info.version);
+
+        if (!(await this._preflight(info.python, file))) {
+            this.setRun({ status: 'error' });
+            return;
+        }
 
         const hub = this.selectedHub;
         const args = [...info.python.slice(1), '-m', 'pybricksdev', 'run', 'ble'];
@@ -455,6 +491,12 @@ class Controller {
         }
         if (c.step !== null) { this.advance(c.step); }
         if (c.kind === 'hub' && mode === 'run') { this.advance(STEP.RUNNING); }
+        this.recent.push(line);
+        if (this.recent.length > 80) { this.recent.shift(); }
+        if (c.kind === 'hub') {
+            const values = parseValues(line);
+            if (Object.keys(values).length) { this.sidebar.post({ type: 'values', values }); }
+        }
         this.log(c.kind === 'hub' ? 'hub' : c.kind, line.trim());
     }
 
@@ -489,6 +531,7 @@ class Controller {
             this.hint = analyze(this.stderrTail.join('\n')) || analyze(this.logBuf.slice(-15).map((e) => e.text).join('\n')) ||
                 { title: 'Upload fehlgeschlagen', text: 'Details stehen im Live-Log.', steps: ['Hub eingeschaltet und nah dran?', 'Läuft ein anderes Programm mit Bluetooth-Verbindung zum Hub?', 'Erneut versuchen.'] };
         }
+        this._markErrorLine(this.run.file);
         const history = this.history;
         history.unshift({ file: path.basename(this.run.file || ''), path: this.run.file || '', mode, hub: hub || 'Auto', status, at: Date.now(), ms });
         this.ctx.globalState.update('history', history.slice(0, 12));
@@ -496,6 +539,7 @@ class Controller {
     }
 
     stop() {
+        if (this.multi.active) { this._killMulti(true); }
         if (!this.runner) { return; }
         this.runner.stopped = true;
         this.log('info', 'Stoppe…');
@@ -504,7 +548,10 @@ class Controller {
 
     _killRunner() {
         if (!this.runner) { return; }
-        const { child } = this.runner;
+        this._killChild(this.runner.child);
+    }
+
+    _killChild(child) {
         try {
             if (process.platform === 'win32') {
                 child.kill();
@@ -546,6 +593,295 @@ class Controller {
         }
     }
 
+    // ───────────────────────── Diagnosebericht ─────────────────────────
+    async copyDiagnostics() {
+        let info = {};
+        try { info = await this.env.inspect(); } catch { /* Bericht trotzdem erzeugen */ }
+        let caps = null;
+        if (info.python && info.version) {
+            try { caps = await this.env.capabilities(info.python, info.version); } catch { /* optional */ }
+        }
+        const version = (this.ctx.extension && this.ctx.extension.packageJSON && this.ctx.extension.packageJSON.version) || '?';
+        const lines = [
+            `Robotik-Erweiterung ${version}`,
+            `VS Code ${vscode.version} · ${process.platform} ${process.arch}`,
+            `Python: ${info.python ? info.python.join(' ') : 'nicht gefunden'} (${info.source || '-'})`,
+            `pybricksdev: ${info.version || 'nicht installiert'}`,
+            `Optionen von "run ble": ${caps ? JSON.stringify(caps) : '-'}`,
+            `Gewählter Hub: ${this.selectedHub || 'Automatisch'}`,
+            '',
+            '--- Log (letzte 60 Zeilen) ---',
+            ...this.logBuf.slice(-60).map((e) => `[${e.kind}] ${e.text}`)
+        ];
+        await vscode.env.clipboard.writeText(lines.join('\n'));
+        vscode.window.showInformationMessage('Robotik: Diagnosebericht kopiert (enthält Dateipfade) – zum Beispiel in eine Mail oder ein Ticket einfügen.');
+    }
+
+    // ───────────────────────── Vorab-Prüfung & Fehlerstellen im Editor ─────────────────────────
+    _range(line) {
+        const l = Math.max(0, line - 1);
+        return new vscode.Range(l, 0, l, 1000);
+    }
+
+    /** Syntax + typische Anfängerfehler. @returns {Promise<boolean>} false = Abbruch */
+    async _preflight(python, file) {
+        const uri = vscode.Uri.file(file);
+        const syn = await syntaxCheck(python, file);
+        if (syn) {
+            const d = new vscode.Diagnostic(this._range(syn.line), syn.message, vscode.DiagnosticSeverity.Error);
+            d.source = 'Robotik (Vorab-Prüfung)';
+            this.diag.set(uri, [d]);
+            this.log('error', `Syntaxfehler in Zeile ${syn.line}: ${syn.message}`);
+            this.log('info', 'Nichts wurde zum Hub gesendet.');
+            this.hint = analyze('SyntaxError');
+            this._offerJump(file, syn.line, syn.message);
+            return false;
+        }
+        let text = '';
+        try { text = fs.readFileSync(file, 'utf8'); } catch { return true; }
+        const diags = staticChecks(text).map((w) => {
+            if (w.severity === 'warning') { this.log('warn', `Zeile ${w.line}: ${w.message}`); }
+            const d = new vscode.Diagnostic(this._range(w.line), w.message, w.severity === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Information);
+            d.source = 'Robotik (Vorab-Prüfung)';
+            return d;
+        });
+        this.diag.set(uri, diags);
+        return true;
+    }
+
+    _offerJump(file, line, message) {
+        vscode.window.showErrorMessage(`Zeile ${line}: ${message}`, 'Zur Zeile springen').then(async (pick) => {
+            if (pick) {
+                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+                const ed = await vscode.window.showTextDocument(doc);
+                const r = this._range(line);
+                ed.selection = new vscode.Selection(r.start, r.start);
+                ed.revealRange(r, vscode.TextEditorRevealType.InCenter);
+            }
+        });
+    }
+
+    /** Markiert die Zeile eines Hub-Tracebacks im Editor. */
+    _markErrorLine(file) {
+        const loc = findErrorLocation(this.recent);
+        if (!loc || !file) { return; }
+        const d = new vscode.Diagnostic(this._range(loc.line), loc.message, vscode.DiagnosticSeverity.Error);
+        d.source = 'Robotik (Hub)';
+        this.diag.set(vscode.Uri.file(file), [d]);
+        this.log('error', `Fehler in Zeile ${loc.line}: ${loc.message}`);
+        this._offerJump(file, loc.line, loc.message);
+    }
+
+    // ───────────────────────── Autovervollständigung ─────────────────────────
+    async setupAutocomplete(silent) {
+        try {
+            const info = await this.env.inspect();
+            if (!info.python || !info.version) {
+                if (!silent) { vscode.window.showWarningMessage('Robotik: Erst die Umgebung einrichten (Werkzeuge → Umgebung prüfen).'); }
+                return;
+            }
+            const sp = await installStubs(info.python, (l) => this.log('info', l));
+            const conf = vscode.workspace.getConfiguration('python.analysis');
+            const cur = conf.get('extraPaths') || [];
+            if (sp && !cur.includes(sp)) {
+                await conf.update('extraPaths', [...cur, sp], vscode.ConfigurationTarget.Global);
+            }
+            this.log('ok', 'Autovervollständigung für Pybricks eingerichtet.');
+            const hasPy = vscode.extensions.getExtension('ms-python.vscode-pylance') || vscode.extensions.getExtension('ms-python.python');
+            if (!silent) {
+                vscode.window.showInformationMessage(hasPy
+                    ? 'Robotik: Autovervollständigung eingerichtet. Falls noch keine Vorschläge kommen: Fenster neu laden.'
+                    : 'Robotik: Eingerichtet – dafür wird zusätzlich die Erweiterung „Python“ (Pylance) von Microsoft gebraucht.');
+            }
+        } catch (err) {
+            this.log('warn', 'Autovervollständigung konnte nicht eingerichtet werden: ' + String((err && (err.stderr || err.message)) || err).trim().split(/\r?\n/).pop());
+        }
+    }
+
+    // ───────────────────────── Klassenmodus (mehrere Hubs) ─────────────────────────
+    async multiRun() {
+        if (this.busy) {
+            this.log('warn', 'Es läuft bereits ein Vorgang. Erst „Stop“ drücken.');
+            return;
+        }
+        const file = this._resolveFile();
+        if (!file) {
+            vscode.window.showErrorMessage('Keine .py-Datei geöffnet! Bitte erst die Datei öffnen, die auf alle Hubs soll.');
+            return;
+        }
+        const known = new Map();
+        this.savedHubs.forEach((h) => known.set(h.name, h));
+        this.found.forEach((h) => { if (!known.has(h.name)) { known.set(h.name, h); } });
+        if (!known.size) {
+            const a = await vscode.window.showInformationMessage('Noch keine Hubs bekannt. Erst nach Hubs suchen (alle Hubs einschalten).', 'Jetzt suchen');
+            if (a) { await this.scan(); }
+            return;
+        }
+        const inRange = (n) => this.found.some((f) => f.name === n);
+        const picks = await vscode.window.showQuickPick(
+            [...known.values()].map((h) => ({ label: h.name, description: inRange(h.name) ? 'in Reichweite' : this.scanned ? 'nicht gefunden' : '', picked: inRange(h.name), hub: h })),
+            { canPickMany: true, title: `Klassenmodus: ${path.basename(file)} auf welche Hubs?` }
+        );
+        if (!picks || !picks.length) { return; }
+        const modePick = await vscode.window.showQuickPick(
+            [
+                { label: 'Nur hochladen', detail: 'Programm startet später per Knopf am Hub (empfohlen)', mode: 'upload' },
+                { label: 'Hochladen & starten', detail: 'Alle Hubs starten das Programm sofort', mode: 'run' }
+            ],
+            { title: 'Was soll passieren?' }
+        );
+        if (!modePick) { return; }
+        const mode = modePick.mode;
+
+        if (this.cfg.get('saveBeforeRun')) {
+            const doc = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === file && d.isDirty);
+            if (doc) { await doc.save(); }
+        }
+        this.hint = null;
+        if (this.cfg.get('clearLogOnRun')) { this.clearLog(); }
+        this.recent = [];
+        this.multi = { active: true, mode, cancelled: false, items: picks.map((p) => ({ name: p.hub.name, status: 'wait', step: STEP.ENV, child: null, stopped: false, tail: [], timer: null })) };
+        this.pushState();
+
+        const info = await this.ensureEnv();
+        const fail = (msg) => {
+            if (msg) { this.log('error', msg); }
+            this.multi.active = false;
+            this.multi.items = [];
+            this.pushState();
+        };
+        if (!info) { return fail(); }
+        const caps = await this.env.capabilities(info.python, info.version);
+        if (mode === 'upload' && !caps.noStart) {
+            this.hint = analyze('incompatible mpy');
+            return fail('Diese pybricksdev-Version kann nicht „nur hochladen“.');
+        }
+        if (!(await this._preflight(info.python, file))) { return fail(); }
+
+        this.log('step', `Klassenmodus: ${path.basename(file)} → ${this.multi.items.length} Hub(s) (${mode === 'run' ? 'hochladen & starten' : 'nur hochladen'})`);
+        const queue = [...this.multi.items];
+        const worker = async () => {
+            while (queue.length) {
+                const item = queue.shift();
+                if (this.multi.cancelled) { item.status = 'stopped'; this.pushState(); continue; }
+                await this._runOnHub(item, info, file, mode);
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+
+        const items = this.multi.items;
+        const ok = items.filter((i) => i.status === 'done').length;
+        const bad = items.filter((i) => i.status === 'error');
+        this.multi.active = false;
+        if (bad.length) {
+            this.log('warn', `${ok}/${items.length} Hubs fertig. Fehler bei: ${bad.map((b) => b.name).join(', ')}`);
+            this.hint = analyze(bad.map((b) => b.tail.join('\n')).join('\n')) || analyze('no pybricks hub found');
+        } else if (this.multi.cancelled) {
+            this.log('warn', 'Klassenmodus gestoppt.');
+        } else {
+            this.log('ok', `Alle ${ok} Hubs fertig.`);
+        }
+        this.pushState();
+    }
+
+    _runOnHub(item, info, file, mode) {
+        return new Promise((resolve) => {
+            const args = [...info.python.slice(1), '-m', 'pybricksdev', 'run', 'ble', '--name', item.name];
+            if (mode === 'upload') { args.push('--no-start'); }
+            args.push(file);
+            item.status = 'busy';
+            item.step = STEP.SEARCH;
+            this.pushState();
+            this.log('step', `[${item.name}] verbinde…`);
+            const child = spawn(info.python[0], args, { windowsHide: true, env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8' } });
+            item.child = child;
+            const onLine = (stream) => new LineBuffer((line) => {
+                const c = classifyLine(line, item.step);
+                if (!c) { return; }
+                if (stream === 'stderr' || c.kind === 'error') { item.tail.push(line); if (item.tail.length > 20) { item.tail.shift(); } }
+                if (c.pct !== undefined) { return; }
+                if (c.step !== null && c.step > item.step) { item.step = c.step; this.pushState(); }
+                this.log(c.kind === 'hub' ? 'hub' : c.kind, `[${item.name}] ${line.trim()}`);
+            });
+            const so = onLine('stdout');
+            const se = onLine('stderr');
+            const arm = () => {
+                clearTimeout(item.timer);
+                if (mode !== 'run') { return; }
+                item.timer = setTimeout(() => {
+                    if (item.status === 'busy' && item.step >= STEP.CONNECTED && item.step < STEP.RUNNING) { item.step = STEP.RUNNING; this.pushState(); }
+                }, 2500);
+            };
+            child.stdout.on('data', (d) => { so.push(d); arm(); });
+            child.stderr.on('data', (d) => { se.push(d); arm(); });
+            const end = (code) => {
+                clearTimeout(item.timer);
+                so.flush(); se.flush();
+                item.child = null;
+                item.status = item.stopped ? 'stopped' : code === 0 ? 'done' : 'error';
+                if (item.status === 'done') { item.step = STEP.DONE; }
+                this.log(item.status === 'done' ? 'ok' : item.status === 'stopped' ? 'warn' : 'error', `[${item.name}] ${item.status === 'done' ? 'fertig' : item.status === 'stopped' ? 'gestoppt' : 'Fehler (Exit-Code ' + code + ')'}`);
+                this.pushState();
+                resolve();
+            };
+            child.on('error', (err) => { item.tail.push(err.message); end(-1); });
+            child.on('close', (code) => end(code));
+        });
+    }
+
+    _killMulti(userStop) {
+        if (userStop) { this.multi.cancelled = true; }
+        for (const item of this.multi.items) {
+            if (item.child) { item.stopped = true; this._killChild(item.child); }
+        }
+    }
+
+    // ───────────────────────── Projekt & Aufgabenkarten ─────────────────────────
+    async newProject() {
+        const parent = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false, openLabel: 'Hier Projekt anlegen' });
+        if (!parent || !parent[0]) { return; }
+        const name = await vscode.window.showInputBox({
+            title: 'Projektname', value: 'mein-roboter',
+            validateInput: (v) => (/^[\w\- äöüÄÖÜß]+$/.test(v.trim()) ? undefined : 'Nur Buchstaben, Zahlen, Leerzeichen, - und _')
+        });
+        if (!name) { return; }
+        const dir = vscode.Uri.joinPath(parent[0], name.trim());
+        try {
+            await vscode.workspace.fs.stat(dir);
+            vscode.window.showErrorMessage(`Den Ordner „${name.trim()}“ gibt es dort schon.`);
+            return;
+        } catch { /* gibt es noch nicht – gut */ }
+        await vscode.workspace.fs.createDirectory(dir);
+        const enc = (t) => Buffer.from(t, 'utf8');
+        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, 'main.py'), enc(TEMPLATES[0].code));
+        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, 'README.md'), enc(`# ${name.trim()}\n\nSPIKE-Projekt (Pybricks).\n\n- \`main.py\` öffnen und in der Robotik-Seitenleiste **▶ Hochladen & starten** drücken.\n- Eigene Aufgabenkarten: Datei \`robotik-tasks.json\` anlegen (siehe Erweiterungs-README).\n`));
+        const pick = await vscode.window.showInformationMessage(`Projekt „${name.trim()}“ angelegt.`, 'Ordner öffnen');
+        if (pick) {
+            vscode.commands.executeCommand('vscode.openFolder', dir);
+        } else {
+            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.joinPath(dir, 'main.py')));
+        }
+    }
+
+    async taskStarter(id) {
+        const t = this.tasks.find((x) => x.id === id);
+        if (!t || !t.starter) { return; }
+        const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+        if (folder) {
+            const uri = vscode.Uri.joinPath(folder.uri, `aufgabe_${id}.py`);
+            try {
+                await vscode.workspace.fs.stat(uri);
+            } catch {
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(t.starter, 'utf8'));
+            }
+            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
+        } else {
+            const doc = await vscode.workspace.openTextDocument({ language: 'python', content: t.starter });
+            await vscode.window.showTextDocument(doc);
+            vscode.window.showInformationMessage('Bitte die Datei speichern (Strg+S), dann kann sie hochgeladen werden.');
+        }
+    }
+
     _onSave(doc) {
         if (!this.cfg.get('autoRunOnSave') || this.runner) { return; }
         if (doc.uri.scheme === 'file' && doc.uri.fsPath === this.activeFile && doc.fileName.toLowerCase().endsWith('.py')) {
@@ -566,6 +902,11 @@ class Controller {
             case 'addHub': return this.addHub();
             case 'testHub': return this.testHub(m.name, m.address);
             case 'pickFile': return this.pickFile();
+            case 'copyDiagnostics': return this.copyDiagnostics();
+            case 'multiRun': return this.multiRun();
+            case 'autocomplete': return this.setupAutocomplete(false);
+            case 'newProject': return this.newProject();
+            case 'taskStarter': return this.taskStarter(m.name);
             case 'clearProgram': return this.clearHubProgram();
             case 'newFromTemplate': return this.newFromTemplate();
             case 'checkEnv': return this.checkEnv();

@@ -2,9 +2,9 @@
   "name": "robotik-extension",
   "displayName": "Robotik in VS Code",
   "publisher": "JulianSeckinger",
-  "description": "LEGO SPIKE (Pybricks) per Knopfdruck flashen & starten – mit eigener Seitenleiste: Hubs suchen/verbinden/löschen, Live-Log, Fortschritt, Fehlerhilfe, Vorlagen und Snippets. Für die Robotik-AG des LGÖ.",
+  "description": "LEGO SPIKE (Pybricks) per Knopfdruck flashen & starten – mit Seitenleiste: Hubs verwalten, Klassenmodus für mehrere Hubs, Live-Messwerte als Kurve, Fehlerstellen im Editor, Aufgabenkarten, Autovervollständigung, Vorlagen. Für die Robotik-AG des LGÖ.",
   "icon": "images/icon.png",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
@@ -93,6 +93,26 @@
         "command": "robotik-extension.openPanel",
         "title": "Steuerung öffnen",
         "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.multiUpload",
+        "title": "Klassenmodus: Auf mehrere Hubs hochladen",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.setupAutocomplete",
+        "title": "Autovervollständigung für Pybricks einrichten",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.newProject",
+        "title": "Neues Projekt anlegen",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.copyDiagnostics",
+        "title": "Diagnosebericht kopieren",
+        "category": "Robotik"
       }
     ],
     "menus": {
@@ -120,6 +140,18 @@
         },
         {
           "command": "robotik-extension.openPanel"
+        },
+        {
+          "command": "robotik-extension.multiUpload"
+        },
+        {
+          "command": "robotik-extension.setupAutocomplete"
+        },
+        {
+          "command": "robotik-extension.newProject"
+        },
+        {
+          "command": "robotik-extension.copyDiagnostics"
         }
       ],
       "editor/title": [
@@ -179,17 +211,14 @@
   },
   "scripts": {
     "lint": "eslint .",
+    "test": "node test/logic.test.js && node test/controller.sim.js",
     "pretest": "npm run lint",
-    "test": "vscode-test",
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/vscode": "^1.103.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.2.2",
-    "eslint": "^9.32.0"
+    "@eslint/js": "^9.32.0",
+    "eslint": "^9.32.0",
+    "globals": "^15.9.0"
   }
 }

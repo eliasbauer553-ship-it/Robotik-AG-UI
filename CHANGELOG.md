@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1
+
+- **Diagnosebericht kopieren** (Werkzeuge / Befehlspalette): Versionen, Python, pybricksdev, unterstützte Optionen und letztes Log in die Zwischenablage – hilft bei der Fehlersuche am echten Hub.
+- Entwicklung: ESLint-Konfiguration, `npm test` (Lint + Logik- und Simulationstests, ohne Hub und ohne VS Code lauffähig).
+
+## 0.3.0
+
+- **Klassenmodus:** gleiche Datei auf mehrere Hubs (parallel, Status pro Hub).
+- **Messwerte:** `print()`-Zahlen live als Liniendiagramm in der Seitenleiste.
+- **Fehler im Editor:** Traceback-Zeile des Hubs wird als Diagnose markiert, mit Sprung zur Zeile.
+- **Vorab-Prüfung:** Syntaxcheck (blockiert den Upload) und Warnungen für typische Anfängerfehler.
+- **Aufgabenkarten** (eingebaut + eigene per `robotik-tasks.json`) mit Startdatei.
+- **Autovervollständigung:** Pybricks-Stubs automatisch eingerichtet.
+- **Neues Projekt anlegen** (Ordner mit `main.py` und README).
+
 ## 0.2.0
 
 - **Neu:** Seitenleiste mit Roboter-Symbol in der Activity Bar (Webview-GUI).
