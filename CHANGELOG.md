@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- **Neu:** Seitenleiste mit Roboter-Symbol in der Activity Bar (Webview-GUI).
+- Hubs suchen (Signalstärke), wählen, Verbindung testen, löschen; „Automatisch“-Modus.
+- Fortschrittsanzeige in Schritten, Live-Log mit getrennter Hub-Ausgabe, Stop-Knopf.
+- „Nur hochladen“ (ohne Start) und „Programm vom Hub löschen“.
+- Verständliche Fehlerhinweise mit Reparatur-Knöpfen.
+- Eigene Python-Umgebung (venv) für pybricksdev statt System-pip (funktioniert auch bei „externally-managed-environment“).
+- Vorlagen, Snippets, Verlauf, Auto-Upload beim Speichern, Statusleisten-Eintrag, Tastenkürzel.
+- Fix: Der Befehl wurde bisher doppelt gestartet (Terminal + Hintergrundprozess) – jetzt nur noch einmal.
+
 ## 0.1.1
 
 - Strukturelle Verbesserungen der Extensionbeschreibung.

@@ -2,9 +2,9 @@
   "name": "robotik-extension",
   "displayName": "Robotik in VS Code",
   "publisher": "JulianSeckinger",
-  "description": "LEGO SPIKE per Knopfdruck flashen & starten (Pybricks via Bluetooth) für die Robotik-AG des LGÖ.",
+  "description": "LEGO SPIKE (Pybricks) per Knopfdruck flashen & starten – mit eigener Seitenleiste: Hubs suchen/verbinden/löschen, Live-Log, Fortschritt, Fehlerhilfe, Vorlagen und Snippets. Für die Robotik-AG des LGÖ.",
   "icon": "images/icon.png",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
@@ -19,7 +19,9 @@
     "robotics",
     "spike",
     "pybricks",
-    "lego"
+    "lego",
+    "bluetooth",
+    "mindstorms"
   ],
   "engines": {
     "vscode": "^1.103.0"
@@ -29,28 +31,150 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:robotik-extension.downloadMainSpike"
+    "onStartupFinished"
   ],
   "main": "./extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "robotik",
+          "title": "Robotik",
+          "icon": "media/robot.svg"
+        }
+      ]
+    },
+    "views": {
+      "robotik": [
+        {
+          "type": "webview",
+          "id": "robotik.sidebar",
+          "name": "SPIKE-Steuerung"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "robotik-extension.downloadMainSpike",
-        "title": "⬇️ Spike"
+        "title": "⬇️ Spike",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.uploadOnly",
+        "title": "Nur auf Hub hochladen (ohne Start)",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.stop",
+        "title": "Programm stoppen",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.scanHubs",
+        "title": "Nach Hubs suchen",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.clearHubProgram",
+        "title": "Programm vom Hub löschen",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.newFromTemplate",
+        "title": "Neues Programm aus Vorlage",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.checkEnvironment",
+        "title": "Umgebung prüfen / reparieren",
+        "category": "Robotik"
+      },
+      {
+        "command": "robotik-extension.openPanel",
+        "title": "Steuerung öffnen",
+        "category": "Robotik"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "robotik-extension.downloadMainSpike"
+        },
+        {
+          "command": "robotik-extension.uploadOnly"
+        },
+        {
+          "command": "robotik-extension.stop"
+        },
+        {
+          "command": "robotik-extension.scanHubs"
+        },
+        {
+          "command": "robotik-extension.clearHubProgram"
+        },
+        {
+          "command": "robotik-extension.newFromTemplate"
+        },
+        {
+          "command": "robotik-extension.checkEnvironment"
+        },
+        {
+          "command": "robotik-extension.openPanel"
         }
       ],
       "editor/title": [
         {
           "command": "robotik-extension.downloadMainSpike",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "resourceLangId == python"
         }
       ]
+    },
+    "keybindings": [
+      {
+        "command": "robotik-extension.downloadMainSpike",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorLangId == python"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "python",
+        "path": "./snippets/pybricks.json"
+      }
+    ],
+    "configuration": {
+      "title": "Robotik",
+      "properties": {
+        "robotik.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: Pfad zu einem eigenen Python (>= 3.10) mit pybricksdev. Leer = automatische eigene Umgebung."
+        },
+        "robotik.saveBeforeRun": {
+          "type": "boolean",
+          "default": true,
+          "description": "Datei vor dem Upload automatisch speichern."
+        },
+        "robotik.autoRunOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Beim Speichern der zuletzt genutzten .py-Datei automatisch hochladen und starten."
+        },
+        "robotik.clearLogOnRun": {
+          "type": "boolean",
+          "default": true,
+          "description": "Live-Log vor jedem Start leeren."
+        },
+        "robotik.scanTimeout": {
+          "type": "number",
+          "default": 6,
+          "minimum": 2,
+          "maximum": 30,
+          "description": "Dauer der Bluetooth-Suche in Sekunden."
+        }
+      }
     }
   },
   "scripts": {

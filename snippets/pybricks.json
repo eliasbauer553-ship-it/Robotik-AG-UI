@@ -1,0 +1,61 @@
+{
+  "Pybricks: PrimeHub Grundgerüst": {
+    "prefix": "pb-start",
+    "body": [
+      "from pybricks.hubs import PrimeHub",
+      "from pybricks.pupdevices import Motor, ColorSensor, UltrasonicSensor, ForceSensor",
+      "from pybricks.parameters import Port, Direction, Color, Button, Stop",
+      "from pybricks.robotics import DriveBase",
+      "from pybricks.tools import wait, StopWatch",
+      "",
+      "hub = PrimeHub()",
+      "",
+      "$0"
+    ],
+    "description": "Imports und PrimeHub für ein neues SPIKE-Programm"
+  },
+  "Pybricks: Motor": {
+    "prefix": "pb-motor",
+    "body": ["${1:motor} = Motor(Port.${2|A,B,C,D,E,F|}${3:, Direction.COUNTERCLOCKWISE})"],
+    "description": "Motor an einem Port anlegen"
+  },
+  "Pybricks: Fahrbasis (DriveBase)": {
+    "prefix": "pb-drive",
+    "body": [
+      "left = Motor(Port.${1|A,B,C,D,E,F|}, Direction.COUNTERCLOCKWISE)",
+      "right = Motor(Port.${2|B,A,C,D,E,F|})",
+      "robot = DriveBase(left, right, wheel_diameter=${3:56}, axle_track=${4:112})",
+      "$0"
+    ],
+    "description": "Zwei Motoren als Fahrbasis (Standard-Rad 56 mm)"
+  },
+  "Pybricks: Farbsensor": {
+    "prefix": "pb-color",
+    "body": ["${1:sensor} = ColorSensor(Port.${2|A,B,C,D,E,F|})", "print(${1:sensor}.color(), ${1:sensor}.reflection())"],
+    "description": "Farbsensor anlegen und auslesen"
+  },
+  "Pybricks: Ultraschallsensor": {
+    "prefix": "pb-ultra",
+    "body": ["${1:eyes} = UltrasonicSensor(Port.${2|A,B,C,D,E,F|})", "print(${1:eyes}.distance())"],
+    "description": "Abstand in mm messen"
+  },
+  "Pybricks: Gyro-Kurs (IMU)": {
+    "prefix": "pb-gyro",
+    "body": ["hub.imu.reset_heading(0)", "print(hub.imu.heading())"],
+    "description": "Drehwinkel des Hubs zurücksetzen und lesen"
+  },
+  "Pybricks: Warten auf Knopfdruck": {
+    "prefix": "pb-button",
+    "body": [
+      "while Button.CENTER not in hub.buttons.pressed():",
+      "    wait(10)",
+      "$0"
+    ],
+    "description": "Programm pausiert bis zum Druck auf den mittleren Knopf"
+  },
+  "Pybricks: Display-Text": {
+    "prefix": "pb-text",
+    "body": ["hub.display.text(\"${1:Hi}\")"],
+    "description": "Text auf der 5×5-Matrix"
+  }
+}

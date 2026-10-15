@@ -1,42 +1,40 @@
 # Robotik in VS Code
 
-LEGO® SPIKE per Knopfdruck flashen & starten – für die Robotik-AG des LGÖ.
+LEGO® SPIKE (Pybricks) per Knopfdruck flashen & starten – jetzt mit eigener **Seitenleiste** in der Activity Bar (Roboter-Symbol), für die Robotik-AG des LGÖ.
 
 ## First Steps
 
-1. Extension aus dem Marketplace installieren: **Robotik in VS Code** (`JulianSeckinger.robotik-extension`).
-2. Voraussetzung (einmalig): **Python 3.10+** installieren
-   - Windows: von [python.org](https://www.python.org/downloads/) laden, dabei **„Add python.exe to PATH“ anhaken**.
-   - Mac/Linux: `python3 --version` prüfen (>= 3.10).
-   - VS Code nach der Python-Installation neu starten.
-3. `.py`-Datei öffnen (z. B. `main.py` für den SPIKE).
-4. Oben im Editor auf **⬇️ Spike** klicken (oder Command Palette: `⬇️ Spike`).
-5. Beim ersten Klick installiert die Extension automatisch `pybricksdev` per `pip` nach (Internet nötig).
-6. SPIKE-Hub **einschalten**, Bluetooth am Rechner **an**, Hub **nah dran** → die Extension verbindet sich per BLE, überträgt das aktive Programm und startet es.
+1. Extension installieren und auf das **Roboter-Symbol** in der linken Leiste klicken.
+2. Voraussetzung (einmalig): **Python 3.10+** (Windows: von [python.org](https://www.python.org/downloads/), „Add python.exe to PATH“ anhaken; danach VS Code neu starten).
+3. Hub mit **Pybricks-Firmware** einschalten, Bluetooth am Rechner an.
+4. `.py`-Datei öffnen → in der Seitenleiste **▶ Hochladen & starten** (oder oben im Editor **⬇️ Spike**, Tastenkürzel `Strg+Alt+R` / `Cmd+Alt+R`).
 
-Fortschritt siehst du im Output-Panel **„Pybricks SPIKE“** und in der Statusleiste.
+Beim ersten Start richtet die Extension automatisch eine **eigene Python-Umgebung** mit `pybricksdev` ein (Internet nötig). Dein System-Python bleibt unberührt.
 
-## Anforderungen
+## Die Seitenleiste
 
-- VS Code 1.103+
-- Python 3.10+
-- Internet beim ersten Start (für `pip install pybricksdev`)
-- LEGO SPIKE Prime mit Pybricks-Firmware + eingeschaltetem Bluetooth
-
-## Befehle
-
-| Befehl | Was passiert |
+| Bereich | Funktionen |
 |---|---|
-| `⬇️ Spike` (`robotik-extension.downloadMainSpike`) | Nimmt die gerade geöffnete `.py`-Datei und führt `python -m pybricksdev run ble <datei>` aus: verbinden → übertragen → starten. |
+| **Hauptkarte** | aktive Datei, gewählter Hub, ▶ Hochladen & starten, ⬆ Nur hochladen, ■ Stop, **Fortschritt in Schritten** (Hub suchen → Verbunden → Übertragen → Läuft → Fertig) |
+| **Hinweise** | Fehlermeldungen werden in verständliche Hilfe übersetzt (Hub nicht gefunden, Bluetooth aus, Hub schon verbunden, Firmware passt nicht, Fehler im Programm …) mit Reparatur-Knopf |
+| **Hubs** | Bluetooth-Suche mit Signalstärke, Hub wählen/merken, **Verbindung testen**, Hub aus der Liste **löschen**, Name manuell eintragen, „Automatisch“ |
+| **Live-Ausgabe** | farbiges Log; `print()`-Ausgaben des Hubs sind getrennt von Systemmeldungen |
+| **Werkzeuge** | Programm aus Vorlage anlegen, **Programm vom Hub löschen**, Umgebung prüfen/reparieren, pybricksdev aktualisieren, Links zu Firmware & Doku |
+| **Verlauf** | letzte Uploads mit ↻ „erneut hochladen“ |
+| **Einstellungen** | Datei vor Upload speichern, **Auto-Upload beim Speichern**, Log leeren |
 
-## Fehlerbehebung
+Außerdem: Statusleiste (zeigt Hub & Zustand, Klick öffnet die Seitenleiste) und **Snippets** (`pb-start`, `pb-motor`, `pb-drive`, `pb-color`, `pb-ultra`, `pb-gyro`, `pb-button`, `pb-text`).
 
-- **„Kein Python gefunden“** → Python 3.10+ installieren, PATH-Haken setzen, VS Code neu starten.
-- **„pybricksdev konnte nicht installiert werden“** → manuell: `python -m pip install -U pybricksdev` (Windows) bzw. `python3 -m pip install -U pybricksdev` (Mac/Linux).
-- **BLE findet den Hub nicht** → Hub aus/ein, näher ran, ggf. anderes Programm/BLE-Verbindung trennen, erneut drücken.
-- **Exit-Code ≠ 0** → Details im Output-Panel „Pybricks SPIKE“ lesen.
+## Befehle (Strg+Umschalt+P → „Robotik“)
+
+`⬇️ Spike` · Nur hochladen · Programm stoppen · Nach Hubs suchen · Programm vom Hub löschen · Neues Programm aus Vorlage · Umgebung prüfen / reparieren · Steuerung öffnen
+
+## Einstellungen
+
+`robotik.pythonPath` · `robotik.saveBeforeRun` · `robotik.autoRunOnSave` · `robotik.clearLogOnRun` · `robotik.scanTimeout`
 
 ## Hinweise
 
-- Pausiert in v0.1 (kommen später zurück): Simulationsfenster, ESP32/Pymakr-Flow, Auto-Sync, Batterie-Anzeige.
+- „Programm vom Hub löschen“ überschreibt das gespeicherte Hub-Programm mit einem leeren Programm.
+- Ein Hub spricht immer nur mit **einem** Programm: Pybricks Code im Browser vorher trennen.
 - Lizenz: GPL-3.0-only, siehe `LICENSE`.
